@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HGVC Resale Analyzer</title>
+<style>
+/* ── 기본 / 다크 테마 ─────────────────────────────────────────── */
+:root {
+  --bg:        #0f1117;
+  --surface:   #1a1d27;
+  --surface2:  #22263a;
+  --border:    #2e3348;
+  --accent:    #4f8ef7;
+  --accent2:   #7c5cfc;
+  --green:     #22c55e;
+  --yellow:    #eab308;
+  --red:       #ef4444;
+  --text:      #e2e8f0;
+  --muted:     #94a3b8;
+  --card-h:    48px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  min-height: 100vh;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity .15s;
+}
+button:hover { opacity: .85; }
+input, select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+input:focus, select:focus { outline: 2px solid var(--accent); }
+label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 3px; }
+
+/* ── 헤더 ────────────────────────────────────────────────────── */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.header-right { display: flex; gap: 10px; align-items: center; }
+.nav { display: flex; gap: 4px; margin-right: 8px; }
+.nav a {
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.nav a:hover { background: var(--surface2); color: var(--text); }
+.nav a.active { background: var(--accent); color: #fff; }
+.badge {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── 메인 레이아웃 ────────────────────────────────────────────── */
+.main { max-width: 1600px; margin: 0 auto; padding: 20px 24px; }
+
+/* ── 통계 카드 ────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.stat-card .label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.stat-card .value { font-size: 24px; font-weight: 700; }
+.stat-card .sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── Top 5 가성비 카드 ────────────────────────────────────────── */
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  margin-top: 24px;
+}
+.top5-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.top5-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  position: relative;
+  transition: border-color .2s;
+}
+.top5-card:hover { border-color: var(--accent); }
+.top5-rank {
+  position: absolute;
+  top: 10px; right: 12px;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--border);
+}
+.top5-resort { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+.top5-unit   { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.top5-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.top5-metric .k { font-size: 10px; color: var(--muted); }
+.top5-metric .v { font-size: 15px; font-weight: 700; }
+.score-bar {
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.score-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+
+/* ── 필터 패널 ────────────────────────────────────────────────── */
+.filter-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.filter-panel .filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  grid-column: span 2;
+}
+.btn-primary  { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-file { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+/* ── 테이블 ───────────────────────────────────────────────────── */
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.table-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.table-header span { color: var(--muted); font-size: 13px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+thead th {
+  background: var(--surface2);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--border);
+}
+thead th:hover { color: var(--text); }
+thead th.sorted { color: var(--accent); }
+tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface2); }
+tbody td {
+  padding: 10px 12px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.td-resort { font-weight: 600; max-width: 180px; white-space: normal; line-height: 1.3; }
+.mf-green { color: var(--green); font-weight: 700; }
+.mf-yellow { color: var(--yellow); font-weight: 700; }
+.mf-red   { color: var(--red);   font-weight: 700; }
+.rofr-low  { color: var(--green);  font-size: 11px; font-weight: 700; }
+.rofr-med  { color: var(--yellow); font-size: 11px; font-weight: 700; }
+.rofr-high { color: var(--red);    font-size: 11px; font-weight: 700; }
+.score-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--surface2);
+}
+.usage-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface2);
+  color: var(--muted);
+}
+.region-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.region-lv { background: #1e3a5f; color: #7cb9fc; }
+.region-hi { background: #1e3d2a; color: #4ade80; }
+.region-fl { background: #3d1e1e; color: #f87171; }
+.sort-icon { margin-left: 4px; }
+.free-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #1e3d2a;
+  color: #4ade80;
+  font-weight: 700;
+}
+
+/* ── 하와이 시뮬레이터 ────────────────────────────────────────── */
+.simulator {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.sim-input-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.sim-input-row > div { min-width: 120px; }
+.sim-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.sim-result-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.sim-resort { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+.sim-unit   { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.sim-nights { font-size: 20px; font-weight: 700; color: var(--accent); }
+.sim-nights-sub { font-size: 11px; color: var(--muted); }
+.sim-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.sim-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s; }
+
+/* ── 푸터 ────────────────────────────────────────────────────── */
+.footer {
+  text-align: center;
+  padding: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── 반응형 ───────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .main { padding: 12px; }
+  .filter-panel { grid-template-columns: 1fr 1fr; }
+  .table-wrap { overflow-x: auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ 헤더 ═══════════════════════════════════════════════════════════════ -->
+<div class="header">
+  <h1>HGVC <span>Resale</span> Analyzer</h1>
+  <div class="header-right">
+    <nav class="nav">
+      <a href="dashboard.html" class="active">대시보드</a>
+      <a href="guide.html">사용 가이드</a>
+    </nav>
+    <span class="badge" id="data-source-badge">샘플 데이터</span>
+    <input type="file" id="json-file" accept=".json" style="display:none" onchange="loadJSON(this)">
+    <button class="btn-file" onclick="document.getElementById('json-file').click()">JSON 불러오기</button>
+    <span class="badge" id="update-time"></span>
+  </div>
+</div>
+
+<!-- ══ 메인 ═══════════════════════════════════════════════════════════════ -->
+<div class="main">
+
+  <!-- 통계 카드 -->
+  <div class="stat-grid" id="stat-grid"></div>
+
+  <!-- Top 5 가성비 -->
+  <div class="section-title">Top 5 가성비 매물</div>
+  <div class="top5-grid" id="top5-grid"></div>
+
+  <!-- 필터 패널 -->
+  <div class="filter-panel">
+    <div>
+      <label>지역</label>
+      <select id="f-region">
+        <option value="">전체</option>
+        <option value="Las Vegas">Las Vegas</option>
+        <option value="Hawaii">Hawaii</option>
+        <option value="Orlando">Orlando</option>
+      </select>
+    </div>
+    <div>
+      <label>리조트</label>
+      <select id="f-resort"><option value="">전체</option></select>
+    </div>
+    <div>
+      <label>시즌</label>
+      <select id="f-season">
+        <option value="">전체</option>
+        <option value="Platinum">Platinum</option>
+        <option value="Gold">Gold</option>
+        <option value="Silver">Silver</option>
+      </select>
+    </div>
+    <div>
+      <label>사용방식</label>
+      <select id="f-usage">
+        <option value="">전체</option>
+        <option value="Annual">Annual</option>
+        <option value="EOY">EOY</option>
+      </select>
+    </div>
+    <div>
+      <label>최대 호가 ($)</label>
+      <input type="number" id="f-maxprice" placeholder="제한없음" min="0" step="500">
+    </div>
+    <div>
+      <label>최대 MF/pt ($)</label>
+      <input type="number" id="f-maxmf" placeholder="0.20" step="0.01" value="0.20">
+    </div>
+    <div>
+      <label>최소 포인트</label>
+      <input type="number" id="f-minpts" placeholder="0" step="1000">
+    </div>
+    <div class="filter-actions">
+      <button class="btn-primary" onclick="applyFilters()">필터 적용</button>
+      <button class="btn-secondary" onclick="resetFilters()">초기화</button>
+    </div>
+  </div>
+
+  <!-- 테이블 -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <strong>매물 목록</strong>
+      <span id="table-count"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr id="thead-row"></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 하와이 시뮬레이터 -->
+  <div class="section-title">하와이 예약 시뮬레이터</div>
+  <div class="simulator">
+    <div class="sim-input-row">
+      <div>
+        <label>보유 포인트</label>
+        <input type="number" id="sim-pts" value="16800" step="100" style="width:130px">
+      </div>
+      <div>
+        <label>시즌</label>
+        <select id="sim-season">
+          <option value="Platinum">Platinum</option>
+          <option value="Gold">Gold</option>
+        </select>
+      </div>
+      <button class="btn-primary" onclick="runSim()">계산</button>
+    </div>
+    <div class="sim-results" id="sim-results"></div>
+  </div>
+
+</div><!-- /main -->
+
+<div class="footer">
+  HGVC Resale Analyzer · 데이터: TimeshareBrokerSales.com · 2025 MF DB 기반
+</div>
+
+<!-- ══ 스크립트 ═══════════════════════════════════════════════════════════ -->
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// 2025 MF 데이터베이스 (atimeshare.com + TUG 실오너 빌 + 고지서 이미지)
+// 키: [resort_keyword, annual_points] → 연간 MF ($)
+// ─────────────────────────────────────────────────────────────────────────────
+const MF_DB = [
+  // ── 라스베이거스 ────────────────────────────────────────────────────────
+  { k:"elara",        pts:23040, mf:1332  },  // 2BR Grand Premier Plat
+  { k:"elara",        pts:16800, mf:1107  },  // 2BR Premier Plat
+  { k:"elara",        pts:11520, mf:1006  },  // 1BR Premier Plat
+  { k:"elara",        pts: 8400, mf: 814  },  // 1BR Plat
+  { k:"elara",        pts: 4800, mf: 428  },  // Studio Plat
+  { k:"boulevard",    pts: 9600, mf:1436  },  // 3BR+ Plat
+  { k:"boulevard",    pts: 8400, mf:1132  },  // 2BR+ Plat
+  { k:"boulevard",    pts: 7000, mf: 906  },  // 2BR Plat
+  { k:"flamingo",     pts: 7000, mf:1340  },  // 2BR Plat
+  { k:"flamingo",     pts: 4800, mf:1192  },  // 1BR Plat
+  { k:"paradise",     pts: 8000, mf:1213  },  // 2BR Plat
+  { k:"trump",        pts:16800, mf:2331  },
+  // ── 하와이 ──────────────────────────────────────────────────────────────
+  // Lagoon Tower — 2025 실제 고지서 (Grand Total D열)
+  { k:"lagoon",       pts: 4800, mf:1290  },  // Studio
+  { k:"lagoon",       pts: 8400, mf:2029  },  // 1BR
+  { k:"lagoon",       pts:13440, mf:2639  },  // 2BR OceanView
+  { k:"lagoon",       pts:15360, mf:3271  },  // 2BR+ OceanFront
+  { k:"lagoon",       pts:20160, mf:3902  },  // 3BR
+  // Grand Waikikian
+  { k:"waikikian",    pts:46000, mf:5835  },  // 3BR Pent Plat
+  { k:"waikikian",    pts:23040, mf:2434  },  // 2BR Premier Plat
+  { k:"waikikian",    pts:20160, mf:2066  },  // 1BR Premier Plat
+  { k:"waikikian",    pts:14880, mf:1803  },
+  { k:"waikikian",    pts:12000, mf:2200  },
+  { k:"waikikian",    pts:11520, mf:2122  },
+  { k:"waikikian",    pts:10080, mf:1860  },
+  { k:"waikikian",    pts: 8160, mf:1803  },
+  // Kings Land
+  { k:"kings",        pts:36800, mf:3118  },  // 3BR Premier Plat
+  { k:"kings",        pts:23040, mf:2321  },  // 2BR Premier Plat
+  { k:"kings",        pts:20160, mf:1870  },  // 1BR Premier Plat
+  { k:"kings",        pts:16800, mf:1530  },
+  { k:"kings",        pts:14880, mf:1360  },
+  { k:"kings",        pts:11520, mf:1107  },
+  { k:"kings",        pts: 9920, mf: 950  },
+  { k:"kings",        pts: 9280, mf: 890  },
+  { k:"kings",        pts: 7680, mf: 730  },
+  // Hokulani Waikiki
+  { k:"hokulani",     pts:13440, mf:1626  },
+  { k:"hokulani",     pts: 9920, mf:1502  },
+  { k:"hokulani",     pts: 9280, mf:1400  },
+  { k:"hokulani",     pts: 6720, mf:1010  },
+  // Kalia Tower
+  { k:"kalia",        pts: 9920, mf:1755  },
+  { k:"kalia",        pts: 7680, mf:1300  },
+  { k:"kalia",        pts: 5440, mf: 920  },
+  // Grand Islander
+  { k:"islander",     pts:46000, mf:6061  },
+  { k:"islander",     pts:30720, mf:2440  },
+  { k:"islander",     pts:26880, mf:1804  },
+  { k:"islander",     pts:20160, mf:3630  },
+  { k:"islander",     pts:11520, mf:2100  },
+  // Ocean Tower
+  { k:"ocean tower",  pts:46000, mf:3335  },
+  { k:"ocean tower",  pts:38400, mf:2233  },
+  // Ocean Enclave
+  { k:"ocean enclave",pts:28800, mf:1591  },
+  // Kohala / Bay Club
+  { k:"kohala",       pts:11200, mf:2100  },
+  { k:"bay club",     pts: 7680, mf:1450  },
+  // ── 올랜도 ──────────────────────────────────────────────────────────────
+  { k:"parc soleil",  pts:15360, mf:1348  },
+  { k:"parc soleil",  pts:13440, mf:1304  },
+  { k:"parc soleil",  pts:11200, mf:1225  },
+  { k:"parc soleil",  pts: 8000, mf:1348  },
+  { k:"tuscany",      pts:13440, mf:2154  },
+  { k:"tuscany",      pts:11200, mf:1660  },
+  { k:"tuscany",      pts: 7680, mf:1439  },
+  { k:"seaworld",     pts:15360, mf:2600  },
+  { k:"seaworld",     pts:11200, mf:1668  },
+];
+
+function lookupMF(resortName, points) {
+  const rn = (resortName || "").toLowerCase();
+  // 같은 리조트 엔트리 중 포인트가 가장 가까운 값 반환
+  const candidates = MF_DB.filter(e => rn.includes(e.k));
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => Math.abs(a.pts - points) - Math.abs(b.pts - points));
+  const best = candidates[0];
+  // 너무 동떨어진 경우(50% 이상 차이) 제외
+  if (Math.abs(best.pts - points) / Math.max(points, 1) > 0.50) return null;
+  // 비례 보간: 같은 리조트 상하위 포인트가 있으면 선형 보간
+  const lower = candidates.filter(e => e.pts <= points).sort((a,b) => b.pts - a.pts)[0];
+  const upper = candidates.filter(e => e.pts >= points).sort((a,b) => a.pts - b.pts)[0];
+  if (lower && upper && lower.pts !== upper.pts) {
+    const ratio = (points - lower.pts) / (upper.pts - lower.pts);
+    return Math.round(lower.mf + ratio * (upper.mf - lower.mf));
+  }
+  return best.mf;
+}
+
+function applyMFDB(listings) {
+  let filled = 0;
+  for (const l of listings) {
+    if (!l.maintenance_fee) {
+      const mf = lookupMF(l.resort_name, l.annual_points);
+      if (mf) { l.maintenance_fee = mf; l.mf_source = "DB-2025"; filled++; }
+    }
+  }
+  if (filled > 0) console.log(`MF DB 자동 보완: ${filled}개`);
+  return listings;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 하와이 예약 포인트 테이블
+// ─────────────────────────────────────────────────────────────────────────────
+const HAWAII_CHART = [
+  { resort: "Lagoon Tower",    unit: "1BR",          Platinum: 7000,  Gold: 4480 },
+  { resort: "Lagoon Tower",    unit: "2BR OceanView", Platinum: 13440, Gold: 8600 },
+  { resort: "Lagoon Tower",    unit: "2BR+ OceanFront",Platinum:15360, Gold: 9840 },
+  { resort: "Grand Waikikian", unit: "Studio",        Platinum: 7200,  Gold: 4600 },
+  { resort: "Grand Waikikian", unit: "1BR",           Platinum: 11520, Gold: 7360 },
+  { resort: "Grand Islander",  unit: "1BR",           Platinum: 11520, Gold: 7360 },
+  { resort: "Kalia Tower",     unit: "1BR",           Platinum: 8400,  Gold: 5400 },
+  { resort: "Bay Club",        unit: "1BR",           Platinum: 7000,  Gold: 5000 },
+  { resort: "Kings Land",      unit: "1BR",           Platinum: 11520, Gold: 7360 },
+  { resort: "Kings Land",      unit: "2BR",           Platinum: 16800, Gold: 10800 },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 샘플 데이터
+// ─────────────────────────────────────────────────────────────────────────────
+// 실제 TUG2 매물 (2026-03-08 수집) — 열기 클릭 시 실제 매물 페이지로 이동
+const SAMPLE = [
+  {resort_name:"Hilton Grand Vacations Club Grand Waikikian",unit_size:"1BR",season:"Platinum",annual_points:11520,usage:"Annual",asking_price:0,maintenance_fee:1802.54,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-Grand-Waikikian/classified-listing/297653",region:"Hawaii"},
+  {resort_name:"Hilton Grand Vacations Club Grand Waikikian",unit_size:"1BR",season:"Gold",annual_points:8160,usage:"Annual",asking_price:0,maintenance_fee:1868.46,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-Grand-Waikikian/classified-listing/297667",region:"Hawaii"},
+  {resort_name:"Hilton Grand Vacations Club at Tuscany Village",unit_size:"2BR",season:"Platinum",annual_points:7680,usage:"Annual",asking_price:0,maintenance_fee:1438.52,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-at-Tuscany-Village/classified-listing/297770",region:"Orlando"},
+  {resort_name:"Hilton Grand Vacations Club Parc Soleil",unit_size:"1BR",season:"Gold",annual_points:8000,usage:"Annual",asking_price:1500,maintenance_fee:2166.74,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-Parc-Soleil/classified-listing/297717",region:"Orlando"},
+  {resort_name:"Hilton Grand Vacations Club at SeaWorld",unit_size:"2BR",season:"Platinum",annual_points:11200,usage:"EOY-Even",asking_price:695,maintenance_fee:1584.06,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-at-SeaWorld/classified-listing/297675",region:"Orlando"},
+  {resort_name:"Hilton Grand Vacations Club at SeaWorld",unit_size:"2BR",season:"Platinum",annual_points:5600,usage:"EOY-Odd",asking_price:0,maintenance_fee:1384.31,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-at-SeaWorld/classified-listing/297498",region:"Orlando"},
+  {resort_name:"Hilton Grand Vacations Club at SeaWorld",unit_size:"3BR",season:"Platinum",annual_points:15360,usage:"Annual",asking_price:1500,maintenance_fee:2599.64,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-at-SeaWorld/classified-listing/297271",region:"Orlando"},
+  {resort_name:"Hilton Grand Vacations Club on the Boulevard",unit_size:"1BR",season:"Platinum",annual_points:7000,usage:"Annual",asking_price:40000,maintenance_fee:1410,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-on-the-Boulevard/classified-listing/297440",region:"Las Vegas"},
+  {resort_name:"Hilton Grand Vacations Chicago Downtown Magnificent Mile",unit_size:"Studio",season:"Platinum",annual_points:5760,usage:"EOY-Even",asking_price:0,maintenance_fee:1535.67,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Chicago-Downtown-Magnificent-Mile/classified-listing/296702",region:"Other"},
+  {resort_name:"Hilton Grand Vacations Club Valdoro Mountain Lodge",unit_size:"2BR",season:"Platinum",annual_points:11200,usage:"Annual",asking_price:5900,maintenance_fee:2036,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-Valdoro-Mountain-Lodge/classified-listing/296677",region:"Other"},
+  {resort_name:"Hilton Grand Vacations Club Las Palmeras",unit_size:"Studio",season:"Platinum",annual_points:7680,usage:"EOY-Odd",asking_price:0,maintenance_fee:1269.13,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-Las-Palmeras/classified-listing/296539",region:"Puerto Rico"},
+  {resort_name:"Hilton Grand Vacations Club Las Palmeras",unit_size:"Studio",season:"Gold",annual_points:8000,usage:"Annual",asking_price:0,maintenance_fee:1752.69,source_url:"https://tug2.com/resorts/resort/Hilton-Grand-Vacations-Club-Las-Palmeras/classified-listing/296538",region:"Puerto Rico"},
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 지표 계산
+// ─────────────────────────────────────────────────────────────────────────────
+function calcMetrics(l) {
+  const isEOY = l.usage && l.usage.includes("EOY");
+  const epts  = isEOY ? l.annual_points / 2 : l.annual_points;
+  const emf   = isEOY ? l.maintenance_fee / 2 : l.maintenance_fee;
+  const ask   = l.asking_price ?? 0;
+
+  const mfPP   = epts ? +(emf / epts).toFixed(4) : null;
+  const costPP = epts ? +(ask / epts).toFixed(4) : null;
+  const totalAnn = emf ? +((ask / 10) + emf).toFixed(0) : null;
+  const hawaiiNights = epts ? +(epts / 7000 * 7).toFixed(1) : null;
+  const breakeven = (totalAnn && totalAnn > 0) ? +(2450 / totalAnn).toFixed(1) : null;
+
+  // ROFR
+  let rofr = "Unknown";
+  const rn = l.resort_name.toLowerCase();
+  if (costPP !== null) {
+    const isHI = /kings|waikikian|lagoon|kalia|bay club|ocean/.test(rn);
+    const isLV = /elara|boulevard|flamingo|paradise/.test(rn);
+    if (isHI)  rofr = costPP < 0.50 ? "High" : costPP < 0.80 ? "Med" : "Low";
+    else if (isLV) rofr = costPP < 0.20 ? "High" : costPP < 0.35 ? "Med" : "Low";
+    else       rofr = "Med";
+  }
+
+  // Value Score
+  let score = 0;
+  if (mfPP !== null) {
+    if (mfPP <= 0.08) score += 35;
+    else if (mfPP <= 0.10) score += 28;
+    else if (mfPP <= 0.12) score += 20;
+    else if (mfPP <= 0.15) score += 10;
+  }
+  if (costPP !== null) {
+    if (costPP === 0)      score += 25;
+    else if (costPP <= 0.20) score += 22;
+    else if (costPP <= 0.35) score += 16;
+    else if (costPP <= 0.60) score += 8;
+  }
+  if (epts >= 16000)      score += 15;
+  else if (epts >= 11000) score += 10;
+  else if (epts >= 7000)  score += 6;
+  else                    score += 3;
+  if (/platinum/i.test(l.season)) score += 15;
+  else if (/gold/i.test(l.season)) score += 10;
+  else if (/silver/i.test(l.season)) score += 5;
+  if (!isEOY) score += 10;
+  else        score += 5;
+
+  return { ...l, mf_per_point: mfPP, cost_per_point: costPP,
+           total_annual_cost: totalAnn, hawaii_nights: hawaiiNights,
+           breakeven_years: breakeven, rofr_risk: rofr, value_score: score,
+           effective_points: epts };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 상태
+// ─────────────────────────────────────────────────────────────────────────────
+let allListings  = [];
+let filteredList = [];
+let sortCol      = "value_score";
+let sortDir      = -1; // -1 = desc
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 초기화
+// ─────────────────────────────────────────────────────────────────────────────
+function init(listings, source = "샘플 데이터") {
+  allListings = applyMFDB(listings).map(calcMetrics);
+  document.getElementById("data-source-badge").textContent = source;
+  document.getElementById("update-time").textContent = new Date().toLocaleTimeString("ko-KR");
+
+  // 리조트 셀렉트 채우기
+  const resorts = [...new Set(allListings.map(l => l.resort_name))].sort();
+  const sel = document.getElementById("f-resort");
+  sel.innerHTML = '<option value="">전체</option>' +
+    resorts.map(r => `<option value="${r}">${r}</option>`).join("");
+
+  applyFilters();
+  runSim();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 필터
+// ─────────────────────────────────────────────────────────────────────────────
+function applyFilters() {
+  const region   = document.getElementById("f-region").value;
+  const resort   = document.getElementById("f-resort").value;
+  const season   = document.getElementById("f-season").value;
+  const usage    = document.getElementById("f-usage").value;
+  const maxPrice = parseFloat(document.getElementById("f-maxprice").value) || Infinity;
+  const maxMF    = parseFloat(document.getElementById("f-maxmf").value) || Infinity;
+  const minPts   = parseFloat(document.getElementById("f-minpts").value) || 0;
+
+  filteredList = allListings.filter(l => {
+    if (region && l.region !== region) return false;
+    if (resort && l.resort_name !== resort) return false;
+    if (season && !l.season.toLowerCase().includes(season.toLowerCase())) return false;
+    if (usage === "Annual" && l.usage !== "Annual") return false;
+    if (usage === "EOY" && !l.usage.includes("EOY")) return false;
+    if (l.asking_price > maxPrice) return false;
+    if (l.mf_per_point !== null && l.mf_per_point > maxMF) return false;
+    if (l.effective_points < minPts) return false;
+    return true;
+  });
+
+  sortList();
+}
+
+function resetFilters() {
+  ["f-region","f-resort","f-season","f-usage"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("f-maxprice").value = "";
+  document.getElementById("f-maxmf").value = "0.20";
+  document.getElementById("f-minpts").value = "";
+  applyFilters();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 정렬
+// ─────────────────────────────────────────────────────────────────────────────
+const COLS = [
+  { key: "resort_name",      label: "리조트" },
+  { key: "region",           label: "지역" },
+  { key: "unit_size",        label: "유닛" },
+  { key: "season",           label: "시즌" },
+  { key: "annual_points",    label: "포인트" },
+  { key: "usage",            label: "사용" },
+  { key: "asking_price",     label: "호가($)" },
+  { key: "maintenance_fee",  label: "MF($)" },
+  { key: "mf_per_point",     label: "MF/pt" },
+  { key: "cost_per_point",   label: "$/pt" },
+  { key: "total_annual_cost",label: "연비용($)" },
+  { key: "hawaii_nights",    label: "하와이박" },
+  { key: "breakeven_years",  label: "손익분기" },
+  { key: "rofr_risk",        label: "ROFR" },
+  { key: "value_score",      label: "점수" },
+];
+
+function buildHeader() {
+  const tr = document.getElementById("thead-row");
+  tr.innerHTML = COLS.map(c => {
+    const cls = c.key === sortCol ? "sorted" : "";
+    const icon = c.key === sortCol ? (sortDir === -1 ? " ▼" : " ▲") : " ⇅";
+    return `<th class="${cls}" onclick="setSort('${c.key}')">${c.label}<span class="sort-icon">${icon}</span></th>`;
+  }).join("") + "<th>링크</th>";
+}
+
+function setSort(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = -1; }
+  sortList();
+}
+
+function sortList() {
+  filteredList.sort((a, b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === "string") return sortDir * va.localeCompare(vb);
+    return sortDir * (va - vb);
+  });
+  render();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 렌더링
+// ─────────────────────────────────────────────────────────────────────────────
+function linkCell(url) {
+  if (!url) return "—";
+  return `<a href="${url}" target="_blank" rel="noopener" title="${url}">열기</a>`;
+}
+
+function fmt$  (v) { return v == null ? "—" : v === 0 ? '<span class="free-badge">FREE</span>' : "$" + v.toLocaleString(); }
+function fmt4  (v) { return v == null ? "—" : v.toFixed(4); }
+function fmtN  (v) { return v == null ? "—" : v.toLocaleString(); }
+function fmtRnd(v) { return v == null ? "—" : "$" + Math.round(v).toLocaleString(); }
+
+function mfClass(v) {
+  if (v == null) return "";
+  if (v <= 0.12) return "mf-green";
+  if (v <= 0.15) return "mf-yellow";
+  return "mf-red";
+}
+
+function rofrClass(r) {
+  if (r === "Low")  return "rofr-low";
+  if (r === "Med")  return "rofr-med";
+  if (r === "High") return "rofr-high";
+  return "";
+}
+
+function scoreColor(s) {
+  if (s >= 80) return "#22c55e";
+  if (s >= 60) return "#4f8ef7";
+  if (s >= 40) return "#eab308";
+  return "#ef4444";
+}
+
+function regionBadge(r) {
+  const cls = r === "Las Vegas" ? "region-lv" : r === "Hawaii" ? "region-hi" : "region-fl";
+  const abbr = r === "Las Vegas" ? "LV" : r === "Hawaii" ? "HI" : "FL";
+  return `<span class="region-badge ${cls}">${abbr}</span>`;
+}
+
+function render() {
+  buildHeader();
+  document.getElementById("table-count").textContent = `${filteredList.length}개 매물`;
+
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = filteredList.map(l => {
+    const mfCls = mfClass(l.mf_per_point);
+    const sc    = l.value_score || 0;
+    return `<tr>
+      <td class="td-resort">${l.resort_name}</td>
+      <td>${regionBadge(l.region || "")}</td>
+      <td>${l.unit_size || "—"}</td>
+      <td>${l.season || "—"}</td>
+      <td>${fmtN(l.annual_points)}</td>
+      <td><span class="usage-badge">${l.usage || "—"}</span></td>
+      <td>${fmt$(l.asking_price)}</td>
+      <td>${l.maintenance_fee ? "$" + l.maintenance_fee.toLocaleString() : "—"}</td>
+      <td class="${mfCls}">${fmt4(l.mf_per_point)}</td>
+      <td>${fmt4(l.cost_per_point)}</td>
+      <td>${fmtRnd(l.total_annual_cost)}</td>
+      <td>${l.hawaii_nights != null ? l.hawaii_nights + "박" : "—"}</td>
+      <td>${l.breakeven_years != null ? l.breakeven_years + "년" : "—"}</td>
+      <td class="${rofrClass(l.rofr_risk)}">${l.rofr_risk || "—"}</td>
+      <td><span class="score-pill" style="color:${scoreColor(sc)}">${sc}</span></td>
+      <td>${linkCell(l.source_url)}</td>
+    </tr>`;
+  }).join("");
+
+  renderStats();
+  renderTop5();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 통계 카드
+// ─────────────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const valid    = filteredList.filter(l => l.mf_per_point != null);
+  const bestMF   = valid.length ? Math.min(...valid.map(l => l.mf_per_point)) : null;
+  const avgScore = filteredList.length
+    ? (filteredList.reduce((s, l) => s + (l.value_score || 0), 0) / filteredList.length).toFixed(0)
+    : null;
+  const freeCnt  = filteredList.filter(l => l.asking_price === 0).length;
+  const lvCnt    = filteredList.filter(l => l.region === "Las Vegas").length;
+  const hiCnt    = filteredList.filter(l => l.region === "Hawaii").length;
+
+  document.getElementById("stat-grid").innerHTML = `
+    <div class="stat-card">
+      <div class="label">총 매물수</div>
+      <div class="value">${filteredList.length}</div>
+      <div class="sub">전체 ${allListings.length}개</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">최저 MF/pt</div>
+      <div class="value" style="color:var(--green)">${bestMF != null ? "$" + bestMF.toFixed(4) : "—"}</div>
+      <div class="sub">목표: $0.12 이하</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">평균 Value Score</div>
+      <div class="value" style="color:var(--accent)">${avgScore ?? "—"}</div>
+      <div class="sub">0~100점</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">FREE 매물</div>
+      <div class="value" style="color:var(--yellow)">${freeCnt}개</div>
+      <div class="sub">유지비만 인수</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">지역 분포</div>
+      <div class="value" style="font-size:16px">LV ${lvCnt} / HI ${hiCnt}</div>
+      <div class="sub">FL ${filteredList.length - lvCnt - hiCnt}개</div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Top 5 카드
+// ─────────────────────────────────────────────────────────────────────────────
+function renderTop5() {
+  const sorted = [...allListings].sort((a, b) => (b.value_score || 0) - (a.value_score || 0));
+  const top5   = sorted.slice(0, 5);
+
+  const medals = ["🥇","🥈","🥉","4️⃣","5️⃣"];
+
+  document.getElementById("top5-grid").innerHTML = top5.map((l, i) => {
+    const sc = l.value_score || 0;
+    const mfCls = mfClass(l.mf_per_point);
+    return `
+    <div class="top5-card">
+      <div class="top5-rank">${i + 1}</div>
+      <div class="top5-resort">${l.resort_name}</div>
+      <div class="top5-unit">${l.unit_size} · ${l.season} · ${l.usage}</div>
+      <div class="top5-metrics">
+        <div class="top5-metric">
+          <div class="k">MF/pt</div>
+          <div class="v ${mfCls}">$${l.mf_per_point != null ? l.mf_per_point.toFixed(4) : "—"}</div>
+        </div>
+        <div class="top5-metric">
+          <div class="k">호가</div>
+          <div class="v">${l.asking_price === 0 ? "FREE" : "$" + l.asking_price.toLocaleString()}</div>
+        </div>
+        <div class="top5-metric">
+          <div class="k">포인트</div>
+          <div class="v">${l.annual_points.toLocaleString()}</div>
+        </div>
+        <div class="top5-metric">
+          <div class="k">연비용</div>
+          <div class="v">${l.total_annual_cost ? "$" + Math.round(l.total_annual_cost).toLocaleString() : "—"}</div>
+        </div>
+      </div>
+      <div class="score-bar">
+        <div class="score-fill" style="width:${sc}%"></div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px">
+        Score: <strong style="color:${scoreColor(sc)}">${sc}</strong> · ROFR: <span class="${rofrClass(l.rofr_risk)}">${l.rofr_risk}</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 하와이 시뮬레이터
+// ─────────────────────────────────────────────────────────────────────────────
+function runSim() {
+  const pts    = parseInt(document.getElementById("sim-pts").value) || 0;
+  const season = document.getElementById("sim-season").value;
+  const maxPts = Math.max(...HAWAII_CHART.map(h => h[season] || 0));
+
+  const cards = HAWAII_CHART.map(h => {
+    const needed = h[season];
+    if (!needed) return null;
+    const nights = Math.floor(pts / needed) * 7 + Math.min(pts % needed, needed) / needed * 7;
+    const exact  = +(pts / needed * 7).toFixed(1);
+    const pct    = Math.min(100, (pts / needed) * 100);
+    const canStay = pts >= needed;
+    return { ...h, needed, nights: exact, pct, canStay };
+  }).filter(Boolean);
+
+  cards.sort((a, b) => b.nights - a.nights);
+
+  document.getElementById("sim-results").innerHTML = cards.map(c => `
+    <div class="sim-result-card" style="${!c.canStay ? "opacity:.5" : ""}">
+      <div class="sim-resort">${c.resort}</div>
+      <div class="sim-unit">${c.unit} (${c.needed.toLocaleString()}pt/주)</div>
+      <div class="sim-nights">${c.nights}박</div>
+      <div class="sim-nights-sub">${(pts / c.needed).toFixed(1)}주 = ${c.nights}박 (7박/주)</div>
+      <div class="sim-bar">
+        <div class="sim-bar-fill" style="width:${Math.min(100, c.pct)}%"></div>
+      </div>
+    </div>
+  `).join("");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JSON 파일 로드
+// ─────────────────────────────────────────────────────────────────────────────
+function loadJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const listings = data.listings || data;
+      if (!Array.isArray(listings)) throw new Error("listings 배열 없음");
+      init(listings, `${file.name} (${listings.length}개)`);
+    } catch (err) {
+      alert("JSON 파싱 오류: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 시작
+// ─────────────────────────────────────────────────────────────────────────────
+init(SAMPLE, "샘플 데이터");
+</script>
+</body>
+</html>

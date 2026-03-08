@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+check_mf.py
+check_coverage.py
